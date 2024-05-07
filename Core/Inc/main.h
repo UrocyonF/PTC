@@ -75,6 +75,10 @@ void Error_Handler(void);
 #define OSC_IN_GPIO_Port GPIOF
 #define OSC_OUT_Pin GPIO_PIN_1
 #define OSC_OUT_GPIO_Port GPIOF
+#define GPIO_PIN_1_Pin GPIO_PIN_1
+#define GPIO_PIN_1_GPIO_Port GPIOC
+#define GPIO_PIN_2_Pin GPIO_PIN_2
+#define GPIO_PIN_2_GPIO_Port GPIOC
 #define B1_Pin GPIO_PIN_0
 #define B1_GPIO_Port GPIOA
 #define SPI1_SCK_Pin GPIO_PIN_5
@@ -111,6 +115,8 @@ void Error_Handler(void);
 #define SWDIO_GPIO_Port GPIOA
 #define SWCLK_Pin GPIO_PIN_14
 #define SWCLK_GPIO_Port GPIOA
+#define GPIO_PIN_3_Pin GPIO_PIN_3
+#define GPIO_PIN_3_GPIO_Port GPIOD
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
 #define I2C1_SCL_Pin GPIO_PIN_6

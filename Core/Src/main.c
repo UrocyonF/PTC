@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "math.h"
+#include <stdint.h>
 
 /* USER CODE END Includes */
 
@@ -32,9 +33,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define DAC_RESOLUTION 4095 // Résolution du DAC
-#define SIN_FREQ 1000 // Fréquence sinusoïdale en Hz (1 kHz)
-#define SAMPLE_RATE 1000 // Fréquence d'échantillonnage en Hz
 
 /* USER CODE END PD */
 
@@ -44,10 +42,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-DAC_HandleTypeDef hdac;
-
 TIM_HandleTypeDef htim3;
-TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
@@ -62,36 +57,46 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM3_Init(void);
-static void MX_DAC_Init(void);
-static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* Function movement prototypes */
-void move_forward_slow();
-void move_forward_fast();
-void move_backward_slow();
-void move_backward_fast();
-void turn_left();
-void turn_right();
-void move_stop();
-
-/* Function to search a path when in front of obstacle */
-void search_for_path();
+void move_forward_slow(void);
+void move_forward_fast(void);
+void move_backward_slow(void);
+void move_backward_fast(void);
+void turn_left(void);
+void turn_right(void);
+void move_stop(void);
 
 /* Function servo motor prototypes */
-void look_left();
-void look_forward();
-void look_right();
-void led_straigth();
+void look_left(void);
+void look_forward(void);
+void look_right(void);
+void led_straigth(void);
 
 /* Function US sensor prototypes */
-void send_trigger_pulse();
-float measure_echo_pulse_duration();
+void send_trigger_pulse(void);
+float measure_echo_pulse_duration(void);
 
 /* Function TOGGLE LED prototypes */
 void toggleLed(void);
 void toggleLedSlow(void);
 void toggleLedFast(void);
+
+/* */
+float measure_distance(void);
+
+void step_turn_right(void);
+void step_turn_left(void);
+void step_move_forward(void);
+
+void transiGoLineToGoLeft(void);
+void goLeftWantUp(void);
+void transiGoLeftToGoUp(void);
+void goUpWantRight(void);
+void transiGoUpToGoRight(void);
+void goRightWantLine(void);
+void transiGoRightToGoUp(void);
 
 /* USER CODE END PFP */
 
@@ -100,6 +105,12 @@ void toggleLedFast(void);
 
 uint8_t uart1_buffer[1] = {' '}; // Buffer for UART1
 uint8_t uart2_buffer[1] = {' '}; // Buffer for UART2
+
+const float minDistDetect = 0.02;
+const float shortDistDetect = 0.04;
+const float longDistDetect = 0.08;
+int loop_counter = 0;
+int on_line = 1;
 
 /* USER CODE END 0 */
 
@@ -135,8 +146,6 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART1_UART_Init();
   MX_TIM3_Init();
-  MX_DAC_Init();
-  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 
     HAL_UART_Receive_IT(&huart1, uart1_buffer, 1); // Prepare UART1 reception
@@ -144,8 +153,6 @@ int main(void)
 
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1); // Prepare PWM for turret servo motor
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2); // Prepare PWM for LED servo motor
-
-    int loop_counter = 0;
 
     // HAL_TIM_Base_Start(&htim2);
 
@@ -242,7 +249,7 @@ int main(void)
         }
 
 		move_stop();
-		HAL_Delay(10);
+ 		HAL_Delay(10);
 		if (distance > 0.04) {
 			if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_RESET) {
 				if (distance < 0.08) {
@@ -272,23 +279,28 @@ int main(void)
     	*/
 
     	// Move with all sensor and go around obstacle
-    	/*
     	look_forward();
-
-        float distance = 0.0;
-        while (distance == 0) {
-			send_trigger_pulse();
-			distance = measure_echo_pulse_duration();
-        }
-
         move_stop();
-		HAL_Delay(10);
 
-        if (distance < 0.04) {
+        float distance = measure_distance();
+        HAL_Delay(10);
+
+        if (distance < minDistDetect) {
+        	continue;
+        }
+        if (distance < shortDistDetect) {
             loop_counter++;
+            if (loop_counter > 3) {
+                look_left();
+                distance = measure_distance();
+                HAL_Delay(10);
 
-            if (loop_counter > 5) {
-                search_for_path();
+                if (distance < shortDistDetect) {
+                    // TODO
+                    HAL_Delay(100000);
+                } else {
+                    transiGoLineToGoLeft();
+                }
                 loop_counter = 0;
             }
         } else {
@@ -296,7 +308,7 @@ int main(void)
             uint32_t photodiode_value_left = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
 
             if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_RESET) {
-				if (distance < 0.08) {
+				if (distance < longDistDetect) {
 					move_forward_slow();
 				} else {
 					move_forward_fast();
@@ -307,12 +319,8 @@ int main(void)
 				turn_left();
 			}
         }
+
         HAL_Delay(40);
-        */
-
-    	//
-
-
 
     /* USER CODE END WHILE */
 
@@ -366,46 +374,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-}
-
-/**
-  * @brief DAC Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_DAC_Init(void)
-{
-
-  /* USER CODE BEGIN DAC_Init 0 */
-
-  /* USER CODE END DAC_Init 0 */
-
-  DAC_ChannelConfTypeDef sConfig = {0};
-
-  /* USER CODE BEGIN DAC_Init 1 */
-
-  /* USER CODE END DAC_Init 1 */
-
-  /** DAC Initialization
-  */
-  hdac.Instance = DAC;
-  if (HAL_DAC_Init(&hdac) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** DAC channel OUT1 config
-  */
-  sConfig.DAC_Trigger = DAC_TRIGGER_T4_TRGO;
-  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
-  if (HAL_DAC_ConfigChannel(&hdac, &sConfig, DAC_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN DAC_Init 2 */
-
-  /* USER CODE END DAC_Init 2 */
-
 }
 
 /**
@@ -469,51 +437,6 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 2 */
   HAL_TIM_MspPostInit(&htim3);
-
-}
-
-/**
-  * @brief TIM4 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM4_Init(void)
-{
-
-  /* USER CODE BEGIN TIM4_Init 0 */
-
-  /* USER CODE END TIM4_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM4_Init 1 */
-
-  /* USER CODE END TIM4_Init 1 */
-  htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 48-1;
-  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 999;
-  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM4_Init 2 */
-
-  /* USER CODE END TIM4_Init 2 */
 
 }
 
@@ -615,7 +538,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIO_PIN_US_OUT_GPIO_Port, GPIO_PIN_US_OUT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIO_PIN_3_GPIO_Port, GPIO_PIN_3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : DRDY_Pin MEMS_INT3_Pin MEMS_INT4_Pin MEMS_INT1_Pin
                            MEMS_INT2_Pin */
@@ -636,11 +559,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PC1 PC2 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2;
+  /*Configure GPIO pin : PtPin */
+  GPIO_InitStruct.Pin = GPIO_PIN_1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIO_PIN_1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PtPin */
+  GPIO_InitStruct.Pin = GPIO_PIN_2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIO_PIN_2_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -677,12 +606,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF14_USB;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PD3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  /*Configure GPIO pin : PtPin */
+  GPIO_InitStruct.Pin = GPIO_PIN_3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIO_PIN_3_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : I2C1_SCL_Pin I2C1_SDA_Pin */
   GPIO_InitStruct.Pin = I2C1_SCL_Pin|I2C1_SDA_Pin;
@@ -699,123 +628,63 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* Send a command to the robot to move forward slowly */
-void move_forward_slow() {
+void move_forward_slow(void) {
     uint8_t go_forward[13] = "mogo 1:7 2:7\r";
     HAL_UART_Transmit(&huart1, go_forward, sizeof(go_forward), 50);
 }
 
 /* Send a command to the robot to move forward fast */
-void move_forward_fast() {
+void move_forward_fast(void) {
     uint8_t go_forward[15] = "mogo 1:15 2:15\r";
     HAL_UART_Transmit(&huart1, go_forward, sizeof(go_forward), 50);
 }
 
 /* Send a command to the robot to move backward slowly */
-void move_backward_slow() {
+void move_backward_slow(void) {
     uint8_t go_backward[15] = "mogo 1:-7 2:-7\r";
     HAL_UART_Transmit(&huart1, go_backward, sizeof(go_backward), 50);
 }
 
 /* Send a command to the robot to move backward fast */
-void move_backward_fast() {
+void move_backward_fast(void) {
     uint8_t go_backward[17] = "mogo 1:-15 2:-15\r";
     HAL_UART_Transmit(&huart1, go_backward, sizeof(go_backward), 50);
 }
 
 /* Send a command to the robot to turn left forward */
-void turn_left() {
+void turn_left(void) {
     uint8_t go_left[16] = "mogo 1:-12 2:12\r";
     HAL_UART_Transmit(&huart1, go_left, sizeof(go_left), 50);
 }
 /* Send a command to the robot to turn right forward */
-void turn_right() {
+void turn_right(void) {
     uint8_t go_right[16] = "mogo 1:12 2:-12\r";
     HAL_UART_Transmit(&huart1, go_right, sizeof(go_right), 50);
 }
 
 /* Send a command to the robot to stop moving */
-void move_stop() {
+void move_stop(void) {
     uint8_t stop[5] = "stop\r";
     HAL_UART_Transmit(&huart1, stop, sizeof(stop), 50);
 }
 
-/* Function to search a path when in front of obstacle */
-void search_for_path() {
-    turn_right();
-    HAL_Delay(900);
-
-    float distance = 0.0;
-    while (distance == 0) {
-        send_trigger_pulse();
-        distance = measure_echo_pulse_duration();
-    }
-
-    if (distance > 0.04) {
-        move_forward_slow();
-        HAL_Delay(1650);
-
-        look_left();
-        distance = 0.0;
-        while (distance == 0) {
-            send_trigger_pulse();
-            distance = measure_echo_pulse_duration();
-        }
-
-        if (distance > 0.04) {
-        	look_forward();
-            turn_left();
-            HAL_Delay(880);
-
-            move_forward_slow();
-            HAL_Delay(1650);
-
-
-            look_right();
-            distance = 0.0;
-			while (distance == 0) {
-				send_trigger_pulse();
-				distance = measure_echo_pulse_duration();
-			}
-
-			if (distance > 0.04) {
-				look_right();
-
-				distance = 0.0;
-				while (distance == 0) {
-					send_trigger_pulse();
-					distance = measure_echo_pulse_duration();
-				}
-
-				look_forward();
-				move_forward_slow();
-				HAL_Delay(1650);
-
-			} else {
-				look_forward();
-				move_forward_slow();
-				HAL_Delay(1650);
-			}
-        }
-    }
-}
-
 /* Send a command to the turret servo motor to look left */
-void look_left() {
+void look_left(void) {
     htim3.Instance->CCR1 = 600;
 }
 
 /* Send a command to the turret servo motor to look forward */
-void look_forward() {
+void look_forward(void) {
     htim3.Instance->CCR1 = 1500;
 }
 
 /* Send a command to the turret servo motor to look right */
-void look_right() {
+void look_right(void) {
     htim3.Instance->CCR1 = 2400;
 }
 
 /* Send a command to the LED servo motor to look straight */
-void led_straigth() {
+void led_straigth(void) {
     htim3.Instance->CCR3 = 2400;
 }
 
@@ -829,7 +698,6 @@ void toggleLedSlow(void) {
 	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_RESET);
 	// Attendre 500 ms
 	HAL_Delay(500);
-
 }
 
 void toggleLedFast(void) {
@@ -842,32 +710,32 @@ void toggleLedFast(void) {
 	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_RESET);
 	// Attendre 500 ms
 	HAL_Delay(250);
-
 }
 
 void toggleLed(void) {
 	// Allumer la LED
 	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_SET);
-
 }
 
 /* Send to the US sensor a trigger pulse to start the measurement */
-void send_trigger_pulse() {
+void send_trigger_pulse(void) {
     HAL_GPIO_WritePin(GPIO_PIN_US_OUT_GPIO_Port, GPIO_PIN_US_OUT_Pin, GPIO_PIN_SET);
     HAL_Delay(1);
     HAL_GPIO_WritePin(GPIO_PIN_US_OUT_GPIO_Port, GPIO_PIN_US_OUT_Pin, GPIO_PIN_RESET);
 }
 
 /* Measure the duration of the echo pulse to calculate the distance */
-float measure_echo_pulse_duration() {
+float measure_echo_pulse_duration(void) {
 	uint32_t start_time, end_time, pulse_duration;
 
     // Wait for the signal ECHO to become HIGH
     while (!HAL_GPIO_ReadPin(GPIO_PIN_US_IN_GPIO_Port, GPIO_PIN_US_IN_Pin));
+	//HAL_GPIO_ReadPin(GPIO_PIN_US_IN_GPIO_Port, GPIO_PIN_US_IN_Pin);
     start_time = HAL_GetTick();
 
     // Wait for the signal ECHO to become LOW
     while (HAL_GPIO_ReadPin(GPIO_PIN_US_IN_GPIO_Port, GPIO_PIN_US_IN_Pin));
+	//HAL_GPIO_ReadPin(GPIO_PIN_US_IN_GPIO_Port, GPIO_PIN_US_IN_Pin);
     end_time = HAL_GetTick();
 
     // Calculate the duration of the pulse
@@ -893,23 +761,144 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     }
 }
 
-/* Callback function for timer */ // TODO: remove later if not used
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-	if (htim -> Instance == TIM4) {
-		static uint16_t index = 0;
 
-		 // Calculer la nouvelle valeur à écrire dans le DAC
-		 uint16_t sin_value = (uint16_t)((DAC_RESOLUTION / 2) * (sin(2 * M_PI * index / (SAMPLE_RATE / SIN_FREQ)) + 1));
+float measure_distance(void) {
+    float distance = 0.0;
+    while (distance == 0.0) {
+        send_trigger_pulse();
+        distance = measure_echo_pulse_duration();
+    }
+    HAL_Delay(10);
+    return distance;
+}
 
-		 // Écrire la valeur dans le DAC
-		 HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, sin_value);
+void step_turn_right(void) {
+    move_stop();
+    turn_right();
+    HAL_Delay(900);
+    move_stop();
+}
 
-		 // Incrémenter l'index
-		 index++;
-		 if (index >= (SAMPLE_RATE / SIN_FREQ)) {
-			 index = 0;
-		 }
-	}
+void step_turn_left(void) {
+    move_stop();
+    turn_left();
+    HAL_Delay(880);
+    move_stop();
+}
+
+void step_move_forward(void) {
+    move_stop();
+    move_forward_slow();
+    HAL_Delay(1650);
+    move_stop();
+}
+
+
+void transiGoLineToGoLeft(void) {
+    on_line = 0;
+    step_turn_left();
+    look_forward();
+    goLeftWantUp();
+}
+
+void goLeftWantUp(void) {
+    step_move_forward();
+
+    look_right();
+    float distance = measure_distance();
+
+    if (distance < shortDistDetect) {
+        look_forward();
+        distance = measure_distance();
+
+        if (distance < shortDistDetect) {
+            // TODO
+            HAL_Delay(100000);
+        } else {
+            goLeftWantUp();
+        }
+    } else {
+        transiGoLeftToGoUp();
+    }
+}
+
+void transiGoLeftToGoUp(void) {
+    step_turn_right();
+    look_forward();
+    goUpWantRight();
+}
+
+void goUpWantRight(void) {
+    step_move_forward();
+
+    look_right();
+    float distance = measure_distance();
+
+    if (distance < shortDistDetect) {
+        look_forward();
+        distance = measure_distance();
+
+        if (distance < shortDistDetect) {
+            look_left();
+            distance = measure_distance();
+
+            if (distance < shortDistDetect) {
+                // TODO
+                HAL_Delay(100000);
+            } else {
+                transiGoLineToGoLeft();
+            }
+        } else {
+            goUpWantRight();
+        }
+    } else {
+        transiGoUpToGoRight();
+    }
+}
+
+void transiGoUpToGoRight(void) {
+    step_turn_right();
+    look_forward();
+    goRightWantLine();
+}
+
+void goRightWantLine(void) {
+    while (!on_line) {
+        look_forward();
+        move_stop();
+
+        float distance = measure_distance();
+
+        if (distance < shortDistDetect) {
+            look_left();
+            distance = measure_distance();
+
+            if (distance < shortDistDetect) {
+                // TODO
+                HAL_Delay(100000);
+            } else {
+                transiGoRightToGoUp();
+            }
+        } else {
+            uint32_t photodiode_value_right = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1);
+            uint32_t photodiode_value_left = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
+
+            if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_RESET) {
+                step_turn_left();
+                look_forward();
+                on_line = 1;
+            } else if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_SET) {
+                turn_right();
+            } else if (photodiode_value_right == GPIO_PIN_SET && photodiode_value_left == GPIO_PIN_RESET) {
+                turn_left();
+            }
+        }
+    }
+}
+
+void transiGoRightToGoUp(void) {
+    step_turn_right();
+    look_forward();
 }
 
 /* USER CODE END 4 */
