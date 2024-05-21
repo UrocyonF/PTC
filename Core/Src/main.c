@@ -80,6 +80,7 @@ float measure_echo_pulse_duration(void);
 
 /* Function TOGGLE LED prototypes */
 void toggleLed(void);
+void switchOffLed(void);
 void toggleLedSlow(void);
 void toggleLedFast(void);
 
@@ -106,9 +107,11 @@ void transiGoRightToGoUp(void);
 uint8_t uart1_buffer[1] = {' '}; // Buffer for UART1
 uint8_t uart2_buffer[1] = {' '}; // Buffer for UART2
 
-const float minDistDetect = 0.02;
-const float shortDistDetect = 0.04;
-const float longDistDetect = 0.08;
+uint8_t us_sensor_echo_value = 0;
+
+const float minDistDetect = 0.015;
+const float shortDistDetect = 0.05;
+const float longDistDetect = 0.07;
 int loop_counter = 0;
 int on_line = 1;
 
@@ -193,10 +196,15 @@ int main(void)
         */
 
         // US sensor
-        /*
+    	/*
         HAL_Delay(100);
         send_trigger_pulse();
         float distance = measure_echo_pulse_duration();
+        if (distance > 10) {
+        	continue;
+        } else {
+        	break;
+        }
         */
 
         // Implement US sensor and move
@@ -266,42 +274,50 @@ int main(void)
 		HAL_Delay(40);
 		*/
 
-        // test turn 90° and go forward 20 cm
-    	/*
-    	turn_left();
-    	HAL_Delay(880);
+        // Start test process (turn 90°, go forward 20 cm, look left then right then forward and display the distance from the US sensor)
+    	step_turn_right();
+        HAL_Delay(1000);
 
-    	turn_right();
-    	HAL_Delay(900);
+    	step_turn_left();
+        HAL_Delay(1000);
 
-    	move_forward_slow();
-    	HAL_Delay(1650);
-    	*/
+        step_move_forward();
+        HAL_Delay(1000);
+        /*
+        look_left();
+        HAL_Delay(2000);
+
+        look_right();
+        HAL_Delay(2000);
+
+        look_forward();
+        HAL_Delay(1000);
+
+        send_trigger_pulse();
+        float distance = measure_echo_pulse_duration();
+        HAL_Delay(2000);
+        */
 
     	// Move with all sensor and go around obstacle
+    	/*
     	look_forward();
-        move_stop();
 
         float distance = measure_distance();
-        HAL_Delay(10);
 
         if (distance < minDistDetect) {
+        	move_stop();
         	continue;
         }
         if (distance < shortDistDetect) {
-            loop_counter++;
-            if (loop_counter > 3) {
-                look_left();
-                distance = measure_distance();
-                HAL_Delay(10);
+        	move_stop();
+			look_left();
+			distance = measure_distance();
 
-                if (distance < shortDistDetect) {
-                    // TODO
-                    HAL_Delay(100000);
-                } else {
-                    transiGoLineToGoLeft();
-                }
-                loop_counter = 0;
+			if (distance < shortDistDetect) {
+				// TODO
+				HAL_Delay(100000);
+			} else {
+				transiGoLineToGoLeft();
             }
         } else {
             uint32_t photodiode_value_right = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1);
@@ -319,8 +335,8 @@ int main(void)
 				turn_left();
 			}
         }
+        */
 
-        HAL_Delay(40);
 
     /* USER CODE END WHILE */
 
@@ -540,14 +556,6 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIO_PIN_3_GPIO_Port, GPIO_PIN_3_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : DRDY_Pin MEMS_INT3_Pin MEMS_INT4_Pin MEMS_INT1_Pin
-                           MEMS_INT2_Pin */
-  GPIO_InitStruct.Pin = DRDY_Pin|MEMS_INT3_Pin|MEMS_INT4_Pin|MEMS_INT1_Pin
-                          |MEMS_INT2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-
   /*Configure GPIO pins : CS_I2C_SPI_Pin LD4_Pin LD3_Pin LD5_Pin
                            LD7_Pin LD9_Pin LD10_Pin LD8_Pin
                            LD6_Pin */
@@ -557,6 +565,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : MEMS_INT3_Pin MEMS_INT4_Pin MEMS_INT1_Pin MEMS_INT2_Pin */
+  GPIO_InitStruct.Pin = MEMS_INT3_Pin|MEMS_INT4_Pin|MEMS_INT1_Pin|MEMS_INT2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PtPin */
@@ -594,8 +608,8 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : PtPin */
   GPIO_InitStruct.Pin = GPIO_PIN_US_IN_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIO_PIN_US_IN_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : DM_Pin DP_Pin */
@@ -620,6 +634,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.Alternate = GPIO_AF4_I2C1;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI2_TSC_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI2_TSC_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -690,31 +708,32 @@ void led_straigth(void) {
 
 void toggleLedSlow(void) {
 	// Allumer la LED
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_SET);
-	// Attendre 500 ms
+	toggleLed();
 	HAL_Delay(500);
 
 	// Éteindre la LED
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_RESET);
-	// Attendre 500 ms
+	switchOffLed();
 	HAL_Delay(500);
 }
 
 void toggleLedFast(void) {
 	// Allumer la LED
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_SET);
-	// Attendre 500 ms
+	toggleLed();
 	HAL_Delay(250);
 
 	// Éteindre la LED
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_RESET);
-	// Attendre 500 ms
+	switchOffLed();
 	HAL_Delay(250);
 }
 
+/* Allumer la LED */
 void toggleLed(void) {
-	// Allumer la LED
 	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_SET);
+}
+
+/* Éteindre la LED */
+void switchOffLed(void) {
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_RESET);
 }
 
 /* Send to the US sensor a trigger pulse to start the measurement */
@@ -729,13 +748,15 @@ float measure_echo_pulse_duration(void) {
 	uint32_t start_time, end_time, pulse_duration;
 
     // Wait for the signal ECHO to become HIGH
-    while (!HAL_GPIO_ReadPin(GPIO_PIN_US_IN_GPIO_Port, GPIO_PIN_US_IN_Pin));
-	//HAL_GPIO_ReadPin(GPIO_PIN_US_IN_GPIO_Port, GPIO_PIN_US_IN_Pin);
+    while (!us_sensor_echo_value) {};
+
+    // Save the start time of the pulse
     start_time = HAL_GetTick();
 
     // Wait for the signal ECHO to become LOW
-    while (HAL_GPIO_ReadPin(GPIO_PIN_US_IN_GPIO_Port, GPIO_PIN_US_IN_Pin));
-	//HAL_GPIO_ReadPin(GPIO_PIN_US_IN_GPIO_Port, GPIO_PIN_US_IN_Pin);
+    while (us_sensor_echo_value) {};
+
+    // Save the end time of the pulse
     end_time = HAL_GetTick();
 
     // Calculate the duration of the pulse
@@ -744,6 +765,13 @@ float measure_echo_pulse_duration(void) {
     // Calculate the distance in cm
     float distance_cm = pulse_duration / 58.0f;
     return distance_cm;
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+    UNUSED(GPIO_Pin);
+    if (GPIO_Pin == GPIO_PIN_US_IN_Pin) {
+        us_sensor_echo_value = HAL_GPIO_ReadPin(GPIO_PIN_US_IN_GPIO_Port, GPIO_PIN_US_IN_Pin);
+    }
 }
 
 /* Callback function for UART reception */
@@ -768,7 +796,7 @@ float measure_distance(void) {
         send_trigger_pulse();
         distance = measure_echo_pulse_duration();
     }
-    HAL_Delay(10);
+    HAL_Delay(5);
     return distance;
 }
 
@@ -803,11 +831,12 @@ void transiGoLineToGoLeft(void) {
 
 void goLeftWantUp(void) {
     step_move_forward();
-
     look_right();
+
     float distance = measure_distance();
 
     if (distance < shortDistDetect) {
+        move_stop();
         look_forward();
         distance = measure_distance();
 
@@ -830,11 +859,12 @@ void transiGoLeftToGoUp(void) {
 
 void goUpWantRight(void) {
     step_move_forward();
-
     look_right();
+
     float distance = measure_distance();
 
     if (distance < shortDistDetect) {
+        move_stop();
         look_forward();
         distance = measure_distance();
 
@@ -865,11 +895,11 @@ void transiGoUpToGoRight(void) {
 void goRightWantLine(void) {
     while (!on_line) {
         look_forward();
-        move_stop();
 
         float distance = measure_distance();
 
         if (distance < shortDistDetect) {
+            move_stop();
             look_left();
             distance = measure_distance();
 
@@ -899,6 +929,7 @@ void goRightWantLine(void) {
 void transiGoRightToGoUp(void) {
     step_turn_right();
     look_forward();
+    goUpWantRight();
 }
 
 /* USER CODE END 4 */
