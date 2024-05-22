@@ -166,18 +166,18 @@ int main(void)
 
     while (1) {
         // Move robot
-    	/*
         move_forward_slow();
-        HAL_Delay(1000);
+        HAL_Delay(500);
         turn_left();
-        HAL_Delay(1000);
+        HAL_Delay(500);
         move_backward_fast();
-        HAL_Delay(1000);
+        HAL_Delay(500);
         turn_right();
-        HAL_Delay(1000);
+        HAL_Delay(500);
         move_stop();
         HAL_Delay(1000);
-        */
+
+
 
         // Move turret servo motor
         /*
@@ -195,6 +195,8 @@ int main(void)
         look_right();
         */
 
+
+
         // US sensor
     	/*
         HAL_Delay(100);
@@ -206,6 +208,8 @@ int main(void)
         	break;
         }
         */
+
+
 
         // Implement US sensor and move
     	/*
@@ -221,6 +225,8 @@ int main(void)
 			}
         }
         */
+
+
 
         // Implement line sensor and move
     	/*
@@ -245,8 +251,12 @@ int main(void)
         HAL_Delay(50);
         */
 
+
+
     	// Implement line sensor, US sensor and move
     	/*
+    	look_forward();
+
         uint32_t photodiode_value_right = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1);
         uint32_t photodiode_value_left = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
 
@@ -256,11 +266,9 @@ int main(void)
 			distance = measure_echo_pulse_duration();
         }
 
-		move_stop();
- 		HAL_Delay(10);
-		if (distance > 0.04) {
+		if (distance > 0.02) {
 			if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_RESET) {
-				if (distance < 0.08) {
+				if (distance < 0.07) {
 					move_forward_slow();
 				} else {
 					move_forward_fast();
@@ -270,20 +278,23 @@ int main(void)
 			} else if (photodiode_value_right == GPIO_PIN_SET && photodiode_value_left == GPIO_PIN_RESET) {
 				turn_left();
 			}
+		} else {
+			move_stop();
 		}
 		HAL_Delay(40);
 		*/
 
-        // Start test process (turn 90°, go forward 20 cm, look left then right then forward and display the distance from the US sensor)
+
+        // Test functions (turn 90°, go forward 20 cm, look left then right then forward and display the distance from the US sensor)
     	/*
     	step_turn_right();
-        HAL_Delay(1000);
+        HAL_Delay(50);
 
     	step_turn_left();
-        HAL_Delay(1000);
+        HAL_Delay(50);
 
         step_move_forward();
-        HAL_Delay(1000);
+        HAL_Delay(50);
 
         look_left();
         HAL_Delay(2000);
@@ -296,12 +307,14 @@ int main(void)
 
         send_trigger_pulse();
         float distance = measure_echo_pulse_duration();
-        HAL_Delay(2000);
-        */
+        HAL_Delay(1000);
+		*/
+
+
 
     	// Move with all sensor and go around obstacle
+    	/*
     	look_forward();
-
         float distance = measure_distance();
 
         if (distance < shortDistDetect) {
@@ -312,7 +325,7 @@ int main(void)
 			distance = measure_distance();
 
 			if (distance < shortDistDetect) {
-				// TODO
+				// TODO : avertir utilisateur que le robot est bloqué
 				HAL_Delay(100000);
 			} else {
 				transiGoLineToGoLeft();
@@ -333,8 +346,7 @@ int main(void)
 				turn_left();
 			}
         }
-
-
+        */
 
     /* USER CODE END WHILE */
 
@@ -651,7 +663,7 @@ void move_forward_slow(void) {
 
 /* Send a command to the robot to move forward fast */
 void move_forward_fast(void) {
-    uint8_t go_forward[15] = "mogo 1:15 2:15\r";
+    uint8_t go_forward[15] = "mogo 1:12 2:12\r";
     HAL_UART_Transmit(&huart1, go_forward, sizeof(go_forward), 50);
 }
 
@@ -663,18 +675,18 @@ void move_backward_slow(void) {
 
 /* Send a command to the robot to move backward fast */
 void move_backward_fast(void) {
-    uint8_t go_backward[17] = "mogo 1:-15 2:-15\r";
+    uint8_t go_backward[17] = "mogo 1:-12 2:-12\r";
     HAL_UART_Transmit(&huart1, go_backward, sizeof(go_backward), 50);
 }
 
 /* Send a command to the robot to turn left forward */
 void turn_left(void) {
-    uint8_t go_left[16] = "mogo 1:-12 2:12\r";
+    uint8_t go_left[16] = "mogo 1:-7 2:7\r";
     HAL_UART_Transmit(&huart1, go_left, sizeof(go_left), 50);
 }
 /* Send a command to the robot to turn right forward */
 void turn_right(void) {
-    uint8_t go_right[16] = "mogo 1:12 2:-12\r";
+    uint8_t go_right[16] = "mogo 1:7 2:-7\r";
     HAL_UART_Transmit(&huart1, go_right, sizeof(go_right), 50);
 }
 
@@ -794,26 +806,22 @@ float measure_distance(void) {
         send_trigger_pulse();
         distance = measure_echo_pulse_duration();
     }
-    HAL_Delay(5);
     return distance;
 }
 
 void step_turn_right(void) {
-    move_stop();
     turn_right();
     HAL_Delay(900);
     move_stop();
 }
 
 void step_turn_left(void) {
-    move_stop();
     turn_left();
     HAL_Delay(880);
     move_stop();
 }
 
 void step_move_forward(void) {
-    move_stop();
     move_forward_slow();
     HAL_Delay(1650);
     move_stop();
@@ -839,7 +847,7 @@ void goLeftWantUp(void) {
         distance = measure_distance();
 
         if (distance < shortDistDetect) {
-            // TODO
+            // TODO : avertir utilisateur que le robot est bloqué
             HAL_Delay(100000);
         } else {
             goLeftWantUp();
@@ -871,7 +879,7 @@ void goUpWantRight(void) {
             distance = measure_distance();
 
             if (distance < shortDistDetect) {
-                // TODO
+                // TODO : avertir utilisateur que le robot est bloqué
                 HAL_Delay(100000);
             } else {
                 transiGoLineToGoLeft();
@@ -902,7 +910,7 @@ void goRightWantLine(void) {
             distance = measure_distance();
 
             if (distance < shortDistDetect) {
-                // TODO
+                // TODO : avertir utilisateur que le robot est bloqué
                 HAL_Delay(100000);
             } else {
                 transiGoRightToGoUp();
