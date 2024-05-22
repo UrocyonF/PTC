@@ -176,7 +176,7 @@ int main(void)
         turn_right();
         HAL_Delay(1000);
         move_stop();
-        HAL_Delay(2000);
+        HAL_Delay(1000);
         */
 
         // Move turret servo motor
@@ -275,6 +275,7 @@ int main(void)
 		*/
 
         // Start test process (turn 90°, go forward 20 cm, look left then right then forward and display the distance from the US sensor)
+    	/*
     	step_turn_right();
         HAL_Delay(1000);
 
@@ -283,7 +284,7 @@ int main(void)
 
         step_move_forward();
         HAL_Delay(1000);
-        /*
+
         look_left();
         HAL_Delay(2000);
 
@@ -299,17 +300,14 @@ int main(void)
         */
 
     	// Move with all sensor and go around obstacle
-    	/*
     	look_forward();
 
         float distance = measure_distance();
 
-        if (distance < minDistDetect) {
-        	move_stop();
-        	continue;
-        }
         if (distance < shortDistDetect) {
         	move_stop();
+			if (distance < minDistDetect) continue;
+
 			look_left();
 			distance = measure_distance();
 
@@ -335,7 +333,7 @@ int main(void)
 				turn_left();
 			}
         }
-        */
+
 
 
     /* USER CODE END WHILE */
@@ -476,7 +474,7 @@ static void MX_USART1_UART_Init(void)
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
-  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.Mode = UART_MODE_TX;
   huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart1.Init.OverSampling = UART_OVERSAMPLING_16;
   huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
@@ -779,10 +777,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     UNUSED(huart);
 
     if (huart->Instance == USART2) {
-        HAL_UART_Transmit(&huart1, uart2_buffer, 1, 50);
+        //HAL_UART_Transmit(&huart1, uart2_buffer, 1, 50);
         HAL_UART_Receive_IT(&huart2, uart2_buffer, 1);
     } else if (huart->Instance == USART1) {
-        HAL_UART_Transmit(&huart2, uart1_buffer, 1, 50);
+        //HAL_UART_Transmit(&huart2, uart1_buffer, 1, 50);
         HAL_UART_Receive_IT(&huart1, uart1_buffer, 1);
     } else {
         Error_Handler();
