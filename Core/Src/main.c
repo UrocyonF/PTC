@@ -85,11 +85,15 @@ void toggleLedSlow(void);
 void toggleLedFast(void);
 
 /* */
+void follow_line(void);
+
+/* */
 float measure_distance(void);
 
 void step_turn_right(void);
 void step_turn_left(void);
 void step_move_forward(void);
+void step_min_move_forward(void);
 
 void transiGoLineToGoLeft(void);
 void goLeftWantUp(void);
@@ -166,6 +170,7 @@ int main(void)
 
     while (1) {
         // Move robot
+    	/*
         move_forward_slow();
         HAL_Delay(500);
         turn_left();
@@ -176,6 +181,7 @@ int main(void)
         HAL_Delay(500);
         move_stop();
         HAL_Delay(1000);
+        */
 
 
 
@@ -257,9 +263,6 @@ int main(void)
     	/*
     	look_forward();
 
-        uint32_t photodiode_value_right = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1);
-        uint32_t photodiode_value_left = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
-
         float distance = 0.0;
         while (distance == 0) {
 			send_trigger_pulse();
@@ -267,6 +270,9 @@ int main(void)
         }
 
 		if (distance > 0.02) {
+			uint32_t photodiode_value_right = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1);
+			uint32_t photodiode_value_left = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
+
 			if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_RESET) {
 				if (distance < 0.07) {
 					move_forward_slow();
@@ -277,24 +283,26 @@ int main(void)
 				turn_right();
 			} else if (photodiode_value_right == GPIO_PIN_SET && photodiode_value_left == GPIO_PIN_RESET) {
 				turn_left();
+			} else {
+				move_stop();
 			}
 		} else {
 			move_stop();
 		}
-		HAL_Delay(40);
 		*/
+
 
 
         // Test functions (turn 90°, go forward 20 cm, look left then right then forward and display the distance from the US sensor)
     	/*
     	step_turn_right();
-        HAL_Delay(50);
+        HAL_Delay(1000);
 
     	step_turn_left();
-        HAL_Delay(50);
+        HAL_Delay(1000);
 
         step_move_forward();
-        HAL_Delay(50);
+        HAL_Delay(1000);
 
         look_left();
         HAL_Delay(2000);
@@ -308,7 +316,7 @@ int main(void)
         send_trigger_pulse();
         float distance = measure_echo_pulse_duration();
         HAL_Delay(1000);
-		*/
+        */
 
 
 
@@ -317,25 +325,12 @@ int main(void)
     	look_forward();
         float distance = measure_distance();
 
-        if (distance < shortDistDetect) {
-        	move_stop();
-			if (distance < minDistDetect) continue;
-
-			look_left();
-			distance = measure_distance();
-
-			if (distance < shortDistDetect) {
-				// TODO : avertir utilisateur que le robot est bloqué
-				HAL_Delay(100000);
-			} else {
-				transiGoLineToGoLeft();
-            }
-        } else {
+        if (distance > shortDistDetect) {
             uint32_t photodiode_value_right = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1);
             uint32_t photodiode_value_left = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
 
             if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_RESET) {
-				if (distance < longDistDetect) {
+				if (distance <= longDistDetect) {
 					move_forward_slow();
 				} else {
 					move_forward_fast();
@@ -344,9 +339,57 @@ int main(void)
 				turn_right();
 			} else if (photodiode_value_right == GPIO_PIN_SET && photodiode_value_left == GPIO_PIN_RESET) {
 				turn_left();
+			} else {
+				move_stop();
+				uint8_t interuption[1] = "I";
+				HAL_UART_Transmit(&huart2, interuption, sizeof(interuption), 50);
+			}
+        } else {
+        	move_stop();
+			if (distance > minDistDetect) {
+				look_left();
+				distance = measure_distance();
+
+				if (distance < shortDistDetect) {
+					// TODO : avertir utilisateur que le robot est bloqué
+					HAL_Delay(100000);
+				} else {
+					// TODO : evitement d'obstacle
+					//transiGoLineToGoLeft();
+				}
 			}
         }
         */
+
+
+
+        // Follow raspberry instruction to move
+    	look_forward();
+        switch (uart2_buffer[0]) {
+            case 'F':
+                follow_line();
+                break;
+            case 'D':
+                step_turn_right();
+                uart2_buffer[0] = 'S';
+                break;
+            case 'Q':
+                step_turn_left();
+                uart2_buffer[0] = 'S';
+                break;
+            case 'R':
+                step_turn_left();
+                step_turn_left();
+                uart2_buffer[0] = 'S';
+                break;
+            case 'Z':
+				step_min_move_forward();
+				uart2_buffer[0] = 'S';
+                break;
+            default:
+                move_stop();
+        }
+        HAL_Delay(10);
 
     /* USER CODE END WHILE */
 
@@ -789,20 +832,51 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     UNUSED(huart);
 
     if (huart->Instance == USART2) {
-        //HAL_UART_Transmit(&huart1, uart2_buffer, 1, 50);
         HAL_UART_Receive_IT(&huart2, uart2_buffer, 1);
-    } else if (huart->Instance == USART1) {
-        //HAL_UART_Transmit(&huart2, uart1_buffer, 1, 50);
-        HAL_UART_Receive_IT(&huart1, uart1_buffer, 1);
     } else {
         Error_Handler();
     }
 }
 
+/* */
+void follow_line(void) {
+	look_forward();
 
+	float distance = 0.0;
+	while (distance == 0) {
+		send_trigger_pulse();
+		distance = measure_echo_pulse_duration();
+	}
+
+	if (distance > 0.02) {
+		uint32_t photodiode_value_right = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1);
+		uint32_t photodiode_value_left = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
+
+		if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_RESET) {
+			if (distance < 0.07) {
+				move_forward_slow();
+			} else {
+				move_forward_fast();
+			}
+		} else if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_SET) {
+			turn_right();
+		} else if (photodiode_value_right == GPIO_PIN_SET && photodiode_value_left == GPIO_PIN_RESET) {
+			turn_left();
+		} else {
+			move_stop();
+			uint8_t interuption[2] = "I\r";
+			HAL_UART_Transmit(&huart2, interuption, sizeof(interuption), 50);
+		}
+	} else {
+		move_stop();
+	}
+}
+
+
+/* */
 float measure_distance(void) {
     float distance = 0.0;
-    while (distance == 0.0) {
+    while (distance <= 0.001) {
         send_trigger_pulse();
         distance = measure_echo_pulse_duration();
     }
@@ -810,20 +884,26 @@ float measure_distance(void) {
 }
 
 void step_turn_right(void) {
-    turn_right();
-    HAL_Delay(900);
-    move_stop();
+	uint8_t go_right[26] = "digo 1:1100:-12 2:1100:12\r";
+	HAL_UART_Transmit(&huart1, go_right, sizeof(go_right), 50);
+	HAL_Delay(1100);
 }
 
 void step_turn_left(void) {
-    turn_left();
-    HAL_Delay(880);
-    move_stop();
+	uint8_t go_left[26] = "digo 1:1100:12 2:1100:-12\r";
+	HAL_UART_Transmit(&huart1, go_left, sizeof(go_left), 50);
+	HAL_Delay(1100);
 }
 
 void step_move_forward(void) {
     move_forward_slow();
     HAL_Delay(1650);
+    move_stop();
+}
+
+void step_min_move_forward(void) {
+    move_forward_slow();
+    HAL_Delay(800);
     move_stop();
 }
 
@@ -927,6 +1007,8 @@ void goRightWantLine(void) {
                 turn_right();
             } else if (photodiode_value_right == GPIO_PIN_SET && photodiode_value_left == GPIO_PIN_RESET) {
                 turn_left();
+            } else {
+            	move_stop();
             }
         }
     }
