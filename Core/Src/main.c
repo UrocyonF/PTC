@@ -63,7 +63,6 @@ static void MX_TIM3_Init(void);
 void move_forward_slow(void);
 void move_forward_fast(void);
 void move_backward_slow(void);
-void move_backward_fast(void);
 void turn_left(void);
 void turn_right(void);
 void move_stop(void);
@@ -85,16 +84,19 @@ void toggleLedSlow(void);
 void toggleLedFast(void);
 
 /* */
-void follow_line(void);
-
-/* */
 float measure_distance(void);
 
+/* */
 void step_turn_right(void);
 void step_turn_left(void);
 void step_move_forward(void);
 void step_min_move_forward(void);
+void demi_tour(void);
 
+/* */
+void follow_line(void);
+
+/* */
 void transiGoLineToGoLeft(void);
 void goLeftWantUp(void);
 void transiGoLeftToGoUp(void);
@@ -295,13 +297,21 @@ int main(void)
 
         // Test functions (turn 90°, go forward 20 cm, look left then right then forward and display the distance from the US sensor)
     	/*
+    	look_forward();
+
     	step_turn_right();
         HAL_Delay(1000);
 
     	step_turn_left();
         HAL_Delay(1000);
 
+    	demi_tour();
+    	HAL_Delay(1000);
+
         step_move_forward();
+        HAL_Delay(1000);
+
+        step_min_move_forward();
         HAL_Delay(1000);
 
         look_left();
@@ -370,26 +380,41 @@ int main(void)
                 follow_line();
                 break;
             case 'D':
+            	move_stop();
+            	HAL_Delay(1000);
                 step_turn_right();
                 uart2_buffer[0] = 'S';
                 break;
             case 'Q':
+            	move_stop();
+            	HAL_Delay(1000);
                 step_turn_left();
                 uart2_buffer[0] = 'S';
                 break;
             case 'R':
-                step_turn_left();
-                step_turn_left();
+            	move_stop();
+            	HAL_Delay(1000);
+            	// TODO : refaire ça
+                step_turn_right();
+                step_turn_right();
                 uart2_buffer[0] = 'S';
                 break;
             case 'Z':
+            	move_stop();
+            	HAL_Delay(1000);
 				step_min_move_forward();
 				uart2_buffer[0] = 'S';
                 break;
+            case 'T':
+            	move_stop();
+            	// TODO : faire du bruit
+            	uart2_buffer[0] = 'S';
+            	break;
             default:
                 move_stop();
         }
-        HAL_Delay(10);
+        HAL_Delay(5);
+
 
     /* USER CODE END WHILE */
 
@@ -529,7 +554,7 @@ static void MX_USART1_UART_Init(void)
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
-  huart1.Init.Mode = UART_MODE_TX;
+  huart1.Init.Mode = UART_MODE_TX_RX;
   huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart1.Init.OverSampling = UART_OVERSAMPLING_16;
   huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
@@ -700,36 +725,30 @@ static void MX_GPIO_Init(void)
 
 /* Send a command to the robot to move forward slowly */
 void move_forward_slow(void) {
-    uint8_t go_forward[13] = "mogo 1:7 2:7\r";
+    uint8_t go_forward[13] = "mogo 1:5 2:5\r";
     HAL_UART_Transmit(&huart1, go_forward, sizeof(go_forward), 50);
 }
 
 /* Send a command to the robot to move forward fast */
 void move_forward_fast(void) {
-    uint8_t go_forward[15] = "mogo 1:12 2:12\r";
+    uint8_t go_forward[15] = "mogo 1:7 2:7\r";
     HAL_UART_Transmit(&huart1, go_forward, sizeof(go_forward), 50);
 }
 
 /* Send a command to the robot to move backward slowly */
 void move_backward_slow(void) {
-    uint8_t go_backward[15] = "mogo 1:-7 2:-7\r";
-    HAL_UART_Transmit(&huart1, go_backward, sizeof(go_backward), 50);
-}
-
-/* Send a command to the robot to move backward fast */
-void move_backward_fast(void) {
-    uint8_t go_backward[17] = "mogo 1:-12 2:-12\r";
+    uint8_t go_backward[15] = "mogo 1:-5 2:-5\r";
     HAL_UART_Transmit(&huart1, go_backward, sizeof(go_backward), 50);
 }
 
 /* Send a command to the robot to turn left forward */
 void turn_left(void) {
-    uint8_t go_left[16] = "mogo 1:-7 2:7\r";
+    uint8_t go_left[16] = "mogo 1:-5 2:5\r";
     HAL_UART_Transmit(&huart1, go_left, sizeof(go_left), 50);
 }
 /* Send a command to the robot to turn right forward */
 void turn_right(void) {
-    uint8_t go_right[16] = "mogo 1:7 2:-7\r";
+    uint8_t go_right[16] = "mogo 1:5 2:-5\r";
     HAL_UART_Transmit(&huart1, go_right, sizeof(go_right), 50);
 }
 
@@ -759,6 +778,16 @@ void led_straigth(void) {
     htim3.Instance->CCR3 = 2400;
 }
 
+/* Allumer la LED */
+void toggleLed(void) {
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_SET);
+}
+
+/* Éteindre la LED */
+void switchOffLed(void) {
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_RESET);
+}
+
 void toggleLedSlow(void) {
 	// Allumer la LED
 	toggleLed();
@@ -777,16 +806,6 @@ void toggleLedFast(void) {
 	// Éteindre la LED
 	switchOffLed();
 	HAL_Delay(250);
-}
-
-/* Allumer la LED */
-void toggleLed(void) {
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_SET);
-}
-
-/* Éteindre la LED */
-void switchOffLed(void) {
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_RESET);
 }
 
 /* Send to the US sensor a trigger pulse to start the measurement */
@@ -833,43 +852,17 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
     if (huart->Instance == USART2) {
         HAL_UART_Receive_IT(&huart2, uart2_buffer, 1);
-    } else {
+    } else if (huart->Instance == USART1) {
+    	/*
+    	if (uart1_buffer != "NACK"){
+    		uint8_t move_finished[2] = "A\r";
+    		HAL_UART_Transmit(&huart2, move_finished, sizeof(move_finished), 50);
+    	}
+    	*/
+    	HAL_UART_Receive_IT(&huart1, uart1_buffer, 1);
+    }else {
         Error_Handler();
     }
-}
-
-/* */
-void follow_line(void) {
-	look_forward();
-
-	float distance = 0.0;
-	while (distance == 0) {
-		send_trigger_pulse();
-		distance = measure_echo_pulse_duration();
-	}
-
-	if (distance > 0.02) {
-		uint32_t photodiode_value_right = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1);
-		uint32_t photodiode_value_left = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
-
-		if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_RESET) {
-			if (distance < 0.07) {
-				move_forward_slow();
-			} else {
-				move_forward_fast();
-			}
-		} else if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_SET) {
-			turn_right();
-		} else if (photodiode_value_right == GPIO_PIN_SET && photodiode_value_left == GPIO_PIN_RESET) {
-			turn_left();
-		} else {
-			move_stop();
-			uint8_t interuption[2] = "I\r";
-			HAL_UART_Transmit(&huart2, interuption, sizeof(interuption), 50);
-		}
-	} else {
-		move_stop();
-	}
 }
 
 
@@ -884,30 +877,82 @@ float measure_distance(void) {
 }
 
 void step_turn_right(void) {
-	uint8_t go_right[26] = "digo 1:1100:-12 2:1100:12\r";
+	uint8_t go_right[26] = "digo 1:1500:-12 2:1500:12\r";
 	HAL_UART_Transmit(&huart1, go_right, sizeof(go_right), 50);
-	HAL_Delay(1100);
+	HAL_Delay(2000);
 }
 
 void step_turn_left(void) {
-	uint8_t go_left[26] = "digo 1:1100:12 2:1100:-12\r";
+	uint8_t go_left[26] = "digo 1:1500:12 2:1500:-12\r";
 	HAL_UART_Transmit(&huart1, go_left, sizeof(go_left), 50);
-	HAL_Delay(1100);
+	HAL_Delay(2000);
 }
 
 void step_move_forward(void) {
     move_forward_slow();
     HAL_Delay(1650);
     move_stop();
+    HAL_Delay(10);
 }
 
 void step_min_move_forward(void) {
     move_forward_slow();
     HAL_Delay(800);
     move_stop();
+    HAL_Delay(10);
+}
+
+void demi_tour(void) {
+	int dbl_int = 0;
+	while (dbl_int < 2) {
+		turn_right();
+
+		uint32_t photodiode_value_right = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1);
+		uint32_t photodiode_value_left = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
+
+		if (photodiode_value_right == GPIO_PIN_SET || photodiode_value_left == GPIO_PIN_SET)
+			dbl_int += 1;
+	}
 }
 
 
+/* */
+void follow_line(void) {
+	look_forward();
+
+	float distance = 0.0;
+	while (distance <= 0.001) {
+		send_trigger_pulse();
+		distance = measure_echo_pulse_duration();
+	}
+
+	if (distance > minDistDetect) {
+		uint32_t photodiode_value_right = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1);
+		uint32_t photodiode_value_left = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
+
+		if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_RESET) {
+			if (distance < longDistDetect) {
+				move_forward_slow();
+			} else {
+				move_forward_fast();
+			}
+		} else if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_SET) {
+			turn_right();
+		} else if (photodiode_value_right == GPIO_PIN_SET && photodiode_value_left == GPIO_PIN_RESET) {
+			turn_left();
+		} else {
+			move_stop();
+			uint8_t interuption[2] = "I\r";
+			HAL_UART_Transmit(&huart2, interuption, sizeof(interuption), 50);
+			uart2_buffer[0] = 'S';
+		}
+	} else {
+		move_stop();
+	}
+}
+
+
+/* */
 void transiGoLineToGoLeft(void) {
     on_line = 0;
     step_turn_left();
