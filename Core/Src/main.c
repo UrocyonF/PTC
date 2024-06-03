@@ -613,7 +613,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIO_PIN_US_OUT_GPIO_Port, GPIO_PIN_US_OUT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8|GPIO_PIN_3_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8_Pin|GPIO_PIN_3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : CS_I2C_SPI_Pin LD4_Pin LD3_Pin LD5_Pin
                            LD7_Pin LD9_Pin LD10_Pin LD8_Pin
@@ -665,8 +665,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIO_PIN_US_IN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PD8 PDPin */
-  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_3_Pin;
+  /*Configure GPIO pins : PDPin PDPin */
+  GPIO_InitStruct.Pin = GPIO_PIN_8_Pin|GPIO_PIN_3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
