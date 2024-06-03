@@ -59,7 +59,7 @@ static void MX_USART1_UART_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
-/* Function movement prototypes */
+/* Functions movement prototypes */
 void move_forward_slow(void);
 void move_forward_fast(void);
 void move_backward_slow(void);
@@ -67,36 +67,36 @@ void turn_left(void);
 void turn_right(void);
 void move_stop(void);
 
-/* Function servo motor prototypes */
-void look_left(void);
-void look_forward(void);
-void look_right(void);
-void led_straigth(void);
-
-/* Function US sensor prototypes */
-void send_trigger_pulse(void);
-float measure_echo_pulse_duration(void);
-
-/* Function TOGGLE LED prototypes */
-void toggleLed(void);
-void switchOffLed(void);
-void toggleLedSlow(void);
-void toggleLedFast(void);
-
-/* */
-float measure_distance(void);
-
-/* */
+/* Functions step movement prototypes */
 void step_turn_right(void);
 void step_turn_left(void);
 void step_move_forward(void);
 void step_min_move_forward(void);
 void demi_tour(void);
 
-/* */
+/* Functions servo motor prototypes */
+void look_left(void);
+void look_forward(void);
+void look_right(void);
+void led_straigth(void);
+
+/* Functions LED and speaker prototypes */
+void switchOnLed(void);
+void switchOffLed(void);
+void switchOnSpeaker(void);
+void switchOffSpeaker(void);
+void toggleOutputSlow(void);
+void toggleOutputFast(void);
+
+/* Functions US sensor prototypes */
+void send_trigger_pulse(void);
+float measure_echo_pulse_duration(void);
+float measure_distance(void);
+
+/* Function follow line prototype */
 void follow_line(void);
 
-/* */
+/* Functions obstacle avoidance prototypes */
 void transiGoLineToGoLeft(void);
 void goLeftWantUp(void);
 void transiGoLeftToGoUp(void);
@@ -110,16 +110,16 @@ void transiGoRightToGoUp(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-uint8_t uart1_buffer[1] = {' '}; // Buffer for UART1
-uint8_t uart2_buffer[1] = {' '}; // Buffer for UART2
+uint8_t uart1_buffer[1] = {' '};        // Buffer for UART1 (Serializer)
+uint8_t uart2_buffer[1] = {' '};        // Buffer for UART2 (Raspberry Pi)
 
-uint8_t us_sensor_echo_value = 0;
+uint8_t us_sensor_echo_value = 0;       // Value of the US sensor echo signal
 
-const float minDistDetect = 0.015;
-const float shortDistDetect = 0.05;
-const float longDistDetect = 0.07;
-int loop_counter = 0;
-int on_line = 1;
+const float minDistDetect = 0.015;      // Minimum distance to detect an obstacle
+const float shortDistDetect = 0.05;     // Short distance to detect an obstacle
+const float longDistDetect = 0.07;      // Long distance to detect an obstacle
+
+int on_line = 1;                        // Flag to know if the robot is on the line or in obstacle avoidance mode
 
 /* USER CODE END 0 */
 
@@ -157,13 +157,13 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
-    HAL_UART_Receive_IT(&huart1, uart1_buffer, 1); // Prepare UART1 reception
-    HAL_UART_Receive_IT(&huart2, uart2_buffer, 1); // Prepare UART2 reception
+    HAL_UART_Receive_IT(&huart1, uart1_buffer, 1);  // Prepare UART1 reception
+    HAL_UART_Receive_IT(&huart2, uart2_buffer, 1);  // Prepare UART2 reception
 
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1); // Prepare PWM for turret servo motor
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2); // Prepare PWM for LED servo motor
+    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);       // Prepare PWM for horizontal turret servo motor
+    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);       // Prepare PWM for vertical turret servo motor
 
-    // HAL_TIM_Base_Start(&htim2);
+    look_forward();                                 // Set the turret servo motor to look forward
 
   /* USER CODE END 2 */
 
@@ -171,7 +171,39 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
     while (1) {
-        // Move robot
+        // Test functions (turn 90°, turn 180°, go forward 20/10cm, look left then right then forward and get the distance from the US sensor)
+    	/*
+    	step_turn_right();
+        HAL_Delay(1000);
+
+    	step_turn_left();
+        HAL_Delay(1000);
+
+    	demi_tour();
+    	HAL_Delay(1000);
+
+        step_move_forward();
+        HAL_Delay(1000);
+
+        step_min_move_forward();
+        HAL_Delay(1000);
+
+        look_left();
+        HAL_Delay(2000);
+
+        look_right();
+        HAL_Delay(2000);
+
+        look_forward();
+        HAL_Delay(1000);
+
+        send_trigger_pulse();
+        float distance = measure_echo_pulse_duration();
+        HAL_Delay(1000);
+        */
+
+
+        // Basic movement
     	/*
         move_forward_slow();
         HAL_Delay(500);
@@ -186,8 +218,7 @@ int main(void)
         */
 
 
-
-        // Move turret servo motor
+        // Test servo motor
         /*
         HAL_Delay(2000);
         led_straigth();
@@ -204,8 +235,7 @@ int main(void)
         */
 
 
-
-        // US sensor
+        // Test US sensor
     	/*
         HAL_Delay(100);
         send_trigger_pulse();
@@ -216,7 +246,6 @@ int main(void)
         	break;
         }
         */
-
 
 
         // Implement US sensor and move
@@ -235,30 +264,22 @@ int main(void)
         */
 
 
-
         // Implement line sensor and move
-    	/*
+        /*
         uint32_t photodiode_value_right = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1);
         uint32_t photodiode_value_left = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
-        mesure_line_sensor(photodiode_value_right, photodiode_value_left, &line_error_correction);
-        if (strcmp(line_error_correction, "resume") == 0) {
-        	move_stop();
-        	HAL_Delay(10);
+
+        if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_RESET) {
             move_forward_slow();
-        } else if (strcmp(line_error_correction, "right_shift") == 0) {
-        	move_stop();
-        	HAL_Delay(10);
-        	turn_right();
-        } else if (strcmp(line_error_correction, "left_shift") == 0) {
-        	move_stop();
-        	HAL_Delay(10);
-        	turn_left();
+        } else if (photodiode_value_right == GPIO_PIN_RESET && photodiode_value_left == GPIO_PIN_SET) {
+            turn_right();
+        } else if (photodiode_value_right == GPIO_PIN_SET && photodiode_value_left == GPIO_PIN_RESET) {
+            turn_left();
         } else {
             move_stop();
         }
         HAL_Delay(50);
         */
-
 
 
     	// Implement line sensor, US sensor and move
@@ -294,42 +315,6 @@ int main(void)
 		*/
 
 
-
-        // Test functions (turn 90°, go forward 20 cm, look left then right then forward and display the distance from the US sensor)
-    	/*
-    	look_forward();
-
-    	step_turn_right();
-        HAL_Delay(1000);
-
-    	step_turn_left();
-        HAL_Delay(1000);
-
-    	demi_tour();
-    	HAL_Delay(1000);
-
-        step_move_forward();
-        HAL_Delay(1000);
-
-        step_min_move_forward();
-        HAL_Delay(1000);
-
-        look_left();
-        HAL_Delay(2000);
-
-        look_right();
-        HAL_Delay(2000);
-
-        look_forward();
-        HAL_Delay(1000);
-
-        send_trigger_pulse();
-        float distance = measure_echo_pulse_duration();
-        HAL_Delay(1000);
-        */
-
-
-
     	// Move with all sensor and go around obstacle
     	/*
     	look_forward();
@@ -361,60 +346,56 @@ int main(void)
 				distance = measure_distance();
 
 				if (distance < shortDistDetect) {
-					// TODO : avertir utilisateur que le robot est bloqué
-					HAL_Delay(100000);
+					toggleOutputFast();
+					HAL_Delay(10000);
 				} else {
-					// TODO : evitement d'obstacle
-					//transiGoLineToGoLeft();
+					transiGoLineToGoLeft();
 				}
 			}
         }
         */
 
 
-
         // Follow raspberry instruction to move
     	look_forward();
         switch (uart2_buffer[0]) {
-            case 'F':
+            case 'F':               // Follow line
                 follow_line();
                 break;
-            case 'D':
+            case 'D':               // Turn right
             	move_stop();
             	HAL_Delay(1000);
                 step_turn_right();
                 uart2_buffer[0] = 'S';
                 break;
-            case 'Q':
+            case 'Q':               // Turn left
             	move_stop();
             	HAL_Delay(1000);
                 step_turn_left();
                 uart2_buffer[0] = 'S';
                 break;
-            case 'R':
+            case 'R':               // Turn around
             	move_stop();
             	HAL_Delay(1000);
-            	// TODO : refaire ça
                 step_turn_right();
                 step_turn_right();
                 uart2_buffer[0] = 'S';
                 break;
-            case 'Z':
+            case 'Z':               // Move a little forward
             	move_stop();
             	HAL_Delay(1000);
 				step_min_move_forward();
 				uart2_buffer[0] = 'S';
                 break;
-            case 'T':
+            case 'T':               // Toggle LED and speaker (book found)
             	move_stop();
-            	// TODO : faire du bruit
+            	toggleOutputSlow();
             	uart2_buffer[0] = 'S';
             	break;
-            default:
+            default:                // Stop the robot
                 move_stop();
         }
         HAL_Delay(5);
-
 
     /* USER CODE END WHILE */
 
@@ -632,7 +613,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIO_PIN_US_OUT_GPIO_Port, GPIO_PIN_US_OUT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIO_PIN_3_GPIO_Port, GPIO_PIN_3_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8|GPIO_PIN_3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : CS_I2C_SPI_Pin LD4_Pin LD3_Pin LD5_Pin
                            LD7_Pin LD9_Pin LD10_Pin LD8_Pin
@@ -663,12 +644,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIO_PIN_2_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : B1_Pin */
-  GPIO_InitStruct.Pin = B1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
-
   /*Configure GPIO pins : SPI1_SCK_Pin SPI1_MISO_Pin SPI1_MISOA7_Pin */
   GPIO_InitStruct.Pin = SPI1_SCK_Pin|SPI1_MISO_Pin|SPI1_MISOA7_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -690,6 +665,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIO_PIN_US_IN_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PD8 PDPin */
+  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
   /*Configure GPIO pins : DM_Pin DP_Pin */
   GPIO_InitStruct.Pin = DM_Pin|DP_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -697,13 +679,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF14_USB;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PtPin */
-  GPIO_InitStruct.Pin = GPIO_PIN_3_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIO_PIN_3_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : I2C1_SCL_Pin I2C1_SDA_Pin */
   GPIO_InitStruct.Pin = I2C1_SCL_Pin|I2C1_SDA_Pin;
@@ -723,6 +698,33 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+/*
+ * Global callback functions
+*/
+
+/* Callback function for US sensor interruption */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+    UNUSED(GPIO_Pin);
+    if (GPIO_Pin == GPIO_PIN_US_IN_Pin) {
+        us_sensor_echo_value = HAL_GPIO_ReadPin(GPIO_PIN_US_IN_GPIO_Port, GPIO_PIN_US_IN_Pin);
+    }
+}
+
+/* Callback function for UART reception */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    UNUSED(huart);
+
+    if (huart->Instance == USART2) {
+        HAL_UART_Receive_IT(&huart2, uart2_buffer, 1);
+    } else {
+        Error_Handler();
+    }
+}
+
+/*
+ * Mouvemnt functions
+*/
+
 /* Send a command to the robot to move forward slowly */
 void move_forward_slow(void) {
     uint8_t go_forward[13] = "mogo 1:5 2:5\r";
@@ -741,12 +743,13 @@ void move_backward_slow(void) {
     HAL_UART_Transmit(&huart1, go_backward, sizeof(go_backward), 50);
 }
 
-/* Send a command to the robot to turn left forward */
+/* Send a command to the robot to turn left */
 void turn_left(void) {
     uint8_t go_left[16] = "mogo 1:-5 2:5\r";
     HAL_UART_Transmit(&huart1, go_left, sizeof(go_left), 50);
 }
-/* Send a command to the robot to turn right forward */
+
+/* Send a command to the robot to turn right */
 void turn_right(void) {
     uint8_t go_right[16] = "mogo 1:5 2:-5\r";
     HAL_UART_Transmit(&huart1, go_right, sizeof(go_right), 50);
@@ -758,28 +761,76 @@ void move_stop(void) {
     HAL_UART_Transmit(&huart1, stop, sizeof(stop), 50);
 }
 
-/* Send a command to the turret servo motor to look left */
+/*
+ * Step movement functions
+*/
+
+/* Send a command to the robot to turn right (90°) */
+void step_turn_right(void) {
+	uint8_t go_right[26] = "digo 1:1500:-12 2:1500:12\r";
+	HAL_UART_Transmit(&huart1, go_right, sizeof(go_right), 50);
+	HAL_Delay(2000);
+}
+
+/* Send a command to the robot to turn left (90°) */
+void step_turn_left(void) {
+	uint8_t go_left[26] = "digo 1:1500:12 2:1500:-12\r";
+	HAL_UART_Transmit(&huart1, go_left, sizeof(go_left), 50);
+	HAL_Delay(2000);
+}
+
+/* Send a command to the robot to turn around (180°) */
+void demi_tour(void) {
+	step_turn_right();
+    step_turn_right();
+}
+
+/* Send a command to the robot to move forward (20cm) */
+void step_move_forward(void) {
+    move_forward_slow();
+    HAL_Delay(1650);
+    move_stop();
+    HAL_Delay(10);
+}
+
+/* Send a command to the robot to move forward (10cm) */
+void step_min_move_forward(void) {
+    move_forward_slow();
+    HAL_Delay(800);
+    move_stop();
+    HAL_Delay(10);
+}
+
+/*
+ * Servo motor functions
+*/
+
+/* Send a command to the horizontal turret servo motor to look left */
 void look_left(void) {
     htim3.Instance->CCR1 = 600;
 }
 
-/* Send a command to the turret servo motor to look forward */
+/* Send a command to the horizontal turret servo motor to look forward */
 void look_forward(void) {
     htim3.Instance->CCR1 = 1500;
 }
 
-/* Send a command to the turret servo motor to look right */
+/* Send a command to the horizontal turret servo motor to look right */
 void look_right(void) {
     htim3.Instance->CCR1 = 2400;
 }
 
-/* Send a command to the LED servo motor to look straight */
+/* Send a command to the vertical turret servo motor to look straight */
 void led_straigth(void) {
     htim3.Instance->CCR3 = 2400;
 }
 
+/*
+ * TOGGLE LED and speacker functions
+*/
+
 /* Allumer la LED */
-void toggleLed(void) {
+void switchOnLed(void) {
 	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_SET);
 }
 
@@ -788,25 +839,49 @@ void switchOffLed(void) {
 	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_RESET);
 }
 
-void toggleLedSlow(void) {
-	// Allumer la LED
-	toggleLed();
-	HAL_Delay(500);
-
-	// Éteindre la LED
-	switchOffLed();
-	HAL_Delay(500);
+/* Faire du bruit avec le speaker */
+void switchOnSpeaker(void) {
+    HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, GPIO_PIN_SET);
 }
 
-void toggleLedFast(void) {
-	// Allumer la LED
-	toggleLed();
-	HAL_Delay(250);
-
-	// Éteindre la LED
-	switchOffLed();
-	HAL_Delay(250);
+/* Arrêter le bruit avec le speaker */
+void switchOffSpeaker(void) {
+    HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, GPIO_PIN_RESET);
 }
+
+/* Faire bipper la LED et le speaker lentement */
+void toggleOutputSlow(void) {
+    for (int i = 0; i < 5; i++) {
+        // Allumer la LED et le speaker
+        switchOnLed();
+        switchOnSpeaker();
+        HAL_Delay(800);
+
+        // Éteindre la LED et le speaker
+        switchOffLed();
+        switchOffSpeaker();
+        HAL_Delay(800);
+    }
+}
+
+/* Faire bipper la LED et le speaker rapidement */
+void toggleOutputFast(void) {
+    for (int i = 0; i < 5; i++) {
+        // Allumer la LED et le speaker
+        switchOnLed();
+        switchOnSpeaker();
+        HAL_Delay(250);
+
+        // Éteindre la LED et le speaker
+        switchOffLed();
+        switchOffSpeaker();
+        HAL_Delay(250);
+    }
+}
+
+/*
+ * US sensor functions
+*/
 
 /* Send to the US sensor a trigger pulse to start the measurement */
 void send_trigger_pulse(void) {
@@ -821,14 +896,10 @@ float measure_echo_pulse_duration(void) {
 
     // Wait for the signal ECHO to become HIGH
     while (!us_sensor_echo_value) {};
-
-    // Save the start time of the pulse
     start_time = HAL_GetTick();
 
     // Wait for the signal ECHO to become LOW
     while (us_sensor_echo_value) {};
-
-    // Save the end time of the pulse
     end_time = HAL_GetTick();
 
     // Calculate the duration of the pulse
@@ -839,34 +910,7 @@ float measure_echo_pulse_duration(void) {
     return distance_cm;
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-    UNUSED(GPIO_Pin);
-    if (GPIO_Pin == GPIO_PIN_US_IN_Pin) {
-        us_sensor_echo_value = HAL_GPIO_ReadPin(GPIO_PIN_US_IN_GPIO_Port, GPIO_PIN_US_IN_Pin);
-    }
-}
-
-/* Callback function for UART reception */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-    UNUSED(huart);
-
-    if (huart->Instance == USART2) {
-        HAL_UART_Receive_IT(&huart2, uart2_buffer, 1);
-    } else if (huart->Instance == USART1) {
-    	/*
-    	if (uart1_buffer != "NACK"){
-    		uint8_t move_finished[2] = "A\r";
-    		HAL_UART_Transmit(&huart2, move_finished, sizeof(move_finished), 50);
-    	}
-    	*/
-    	HAL_UART_Receive_IT(&huart1, uart1_buffer, 1);
-    }else {
-        Error_Handler();
-    }
-}
-
-
-/* */
+/* Measure the distance between the robot and an obstacle */
 float measure_distance(void) {
     float distance = 0.0;
     while (distance <= 0.001) {
@@ -876,47 +920,11 @@ float measure_distance(void) {
     return distance;
 }
 
-void step_turn_right(void) {
-	uint8_t go_right[26] = "digo 1:1500:-12 2:1500:12\r";
-	HAL_UART_Transmit(&huart1, go_right, sizeof(go_right), 50);
-	HAL_Delay(2000);
-}
+/*
+ * Follow line function
+*/
 
-void step_turn_left(void) {
-	uint8_t go_left[26] = "digo 1:1500:12 2:1500:-12\r";
-	HAL_UART_Transmit(&huart1, go_left, sizeof(go_left), 50);
-	HAL_Delay(2000);
-}
-
-void step_move_forward(void) {
-    move_forward_slow();
-    HAL_Delay(1650);
-    move_stop();
-    HAL_Delay(10);
-}
-
-void step_min_move_forward(void) {
-    move_forward_slow();
-    HAL_Delay(800);
-    move_stop();
-    HAL_Delay(10);
-}
-
-void demi_tour(void) {
-	int dbl_int = 0;
-	while (dbl_int < 2) {
-		turn_right();
-
-		uint32_t photodiode_value_right = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1);
-		uint32_t photodiode_value_left = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
-
-		if (photodiode_value_right == GPIO_PIN_SET || photodiode_value_left == GPIO_PIN_SET)
-			dbl_int += 1;
-	}
-}
-
-
-/* */
+/* Follow the line on the ground and adapt the movement of the robot according to the US sensor */
 void follow_line(void) {
 	look_forward();
 
@@ -942,7 +950,7 @@ void follow_line(void) {
 			turn_left();
 		} else {
 			move_stop();
-			uint8_t interuption[2] = "I\r";
+			uint8_t interuption[2] = "I\r";         // Send an "interruption" to the Raspberry Pi
 			HAL_UART_Transmit(&huart2, interuption, sizeof(interuption), 50);
 			uart2_buffer[0] = 'S';
 		}
@@ -951,8 +959,11 @@ void follow_line(void) {
 	}
 }
 
+/*
+ * Obstacle avoidance functions
+*/
 
-/* */
+/* Transition function from follow line to obstacle avoidance */
 void transiGoLineToGoLeft(void) {
     on_line = 0;
     step_turn_left();
@@ -960,6 +971,7 @@ void transiGoLineToGoLeft(void) {
     goLeftWantUp();
 }
 
+/* Function to search a path up by going left */
 void goLeftWantUp(void) {
     step_move_forward();
     look_right();
@@ -972,8 +984,8 @@ void goLeftWantUp(void) {
         distance = measure_distance();
 
         if (distance < shortDistDetect) {
-            // TODO : avertir utilisateur que le robot est bloqué
-            HAL_Delay(100000);
+            toggleOutputFast();
+            HAL_Delay(10000);
         } else {
             goLeftWantUp();
         }
@@ -982,12 +994,14 @@ void goLeftWantUp(void) {
     }
 }
 
+/* Transition function from go left to go up */
 void transiGoLeftToGoUp(void) {
     step_turn_right();
     look_forward();
     goUpWantRight();
 }
 
+/* Function to search a path right by going up */
 void goUpWantRight(void) {
     step_move_forward();
     look_right();
@@ -1004,8 +1018,8 @@ void goUpWantRight(void) {
             distance = measure_distance();
 
             if (distance < shortDistDetect) {
-                // TODO : avertir utilisateur que le robot est bloqué
-                HAL_Delay(100000);
+                toggleOutputFast();
+                HAL_Delay(10000);
             } else {
                 transiGoLineToGoLeft();
             }
@@ -1017,12 +1031,14 @@ void goUpWantRight(void) {
     }
 }
 
+/* Transition function from go up to go right */
 void transiGoUpToGoRight(void) {
     step_turn_right();
     look_forward();
     goRightWantLine();
 }
 
+/* Function to search a path right (to the line) by going up */
 void goRightWantLine(void) {
     while (!on_line) {
         look_forward();
@@ -1035,8 +1051,8 @@ void goRightWantLine(void) {
             distance = measure_distance();
 
             if (distance < shortDistDetect) {
-                // TODO : avertir utilisateur que le robot est bloqué
-                HAL_Delay(100000);
+                toggleOutputFast();
+                HAL_Delay(10000);
             } else {
                 transiGoRightToGoUp();
             }
@@ -1059,6 +1075,7 @@ void goRightWantLine(void) {
     }
 }
 
+/* Transition function from go right to go up */
 void transiGoRightToGoUp(void) {
     step_turn_right();
     look_forward();
